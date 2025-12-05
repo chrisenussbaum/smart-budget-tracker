@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Budget Spreadsheet</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for aesthetic */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fc;
+            color: #1f2937;
+        }
+        .container {
+            max-width: 1400px;
+        }
+        .card {
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+        .table-header-bg {
+            background-color: #4f46e5; /* Indigo-600 */
+            color: white;
+            padding: 0.75rem 0.5rem;
+            text-align: center;
+        }
+        .table-cell {
+            padding: 0.5rem;
+            border-bottom: 1px solid #e5e7eb;
+            white-space: nowrap;
+        }
+        .spreadsheet-input {
+            width: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 0.375rem;
+            background-color: #f9fafb;
+            padding: 0.25rem;
+            transition: all 0.1s;
+        }
+        .spreadsheet-input:focus {
+            outline: none;
+            border-color: #4f46e5;
+            box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.2);
+        }
+        .fixed-row-bg { background-color: #f0f9ff; /* Blue-50 */ }
+        .variable-row-bg { background-color: #fefce8; /* Yellow-50 */ }
+        .flex-spending-bg { background-color: #f3f4f6; /* Gray-100 */ }
+        .variable-spending-bg { background-color: #fff7ed; /* Orange-50 */ }
+
+        .projected-balance-bg { background-color: #d1fae5; /* Green-100 */ }
+        .processed-status-bg { color: #10b981; font-weight: 600; }
+        .pending-status-bg { color: #f59e0b; font-weight: 600; }
+
+        /* Modal styling */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-overlay.show {
+            display: flex;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Confirmation Modal Structure -->
+    <div id="confirmation-modal" class="modal-overlay">
+        <div class="card p-6 w-11/12 md:w-1/3 rounded-xl">
+            <h3 class="text-xl font-bold mb-4 text-gray-800">Confirm Deletion</h3>
+            <p id="modal-message" class="mb-6 text-gray-600"></p>
+            <div class="flex justify-end space-x-3">
+                <button id="modal-cancel-button" class="px-4 py-2 bg-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-300 transition duration-150">Cancel</button>
+                <button id="modal-confirm-button" class="px-4 py-2 bg-red-600 text-white font-medium rounded-lg hover:bg-red-700 transition duration-150">Confirm</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="container mx-auto p-4 md:p-8">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-indigo-700 mb-6 text-center">
+            Monthly Financial Snapshot
+        </h1>
+        
+        <!-- SUMMARY SECTION -->
+        <div class="card p-4 md:p-6 mb-8 rounded-xl">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">
+                Budget Overview <span id="display-date" class="text-base font-normal ml-4">Date: n/a</span>
+            </h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                
+                <!-- Monthly Salary -->
+                <div class="bg-indigo-50 p-3 rounded-lg flex flex-col justify-between">
+                    <label class="text-sm font-medium text-indigo-700">Monthly Salary</label>
+                    <input type="number" step="0.01" value="4000.00" data-key="monthlySalary" onchange="handleSummaryInputChange(this)" class="spreadsheet-input text-lg font-bold text-right text-indigo-900 mt-1">
+                    <span id="display-salary" class="hidden"></span>
+                </div>
+
+                <!-- Current Balance -->
+                <div class="bg-green-50 p-3 rounded-lg flex flex-col justify-between">
+                    <label class="text-sm font-medium text-green-700">Current Balance</label>
+                    <input type="number" step="0.01" value="5000.00" data-key="currentBalance" onchange="handleSummaryInputChange(this)" class="spreadsheet-input text-lg font-bold text-right text-green-900 mt-1">
+                    <span id="display-current-balance" class="hidden"></span>
+                </div>
+
+                <!-- Bonus Cash -->
+                <div class="bg-yellow-50 p-3 rounded-lg flex flex-col justify-between">
+                    <label class="text-sm font-medium text-yellow-700">Bonus Cash</label>
+                    <input type="number" step="0.01" value="0.00" data-key="bonusCash" onchange="handleSummaryInputChange(this)" class="spreadsheet-input text-lg font-bold text-right text-yellow-900 mt-1">
+                    <span id="display-bonus-cash" class="hidden"></span>
+                </div>
+                
+                <!-- Estimated Flex -->
+                <div class="bg-red-50 p-3 rounded-lg flex flex-col justify-between">
+                    <label class="text-sm font-medium text-red-700">Est. Flex/Savings</label>
+                    <p id="display-estimated-flex" class="text-lg font-bold text-right text-red-900 mt-1">$0.00</p>
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6 pt-4 border-t">
+                <div class="p-2 border-r">
+                    <p class="text-xs text-gray-500">Total Fixed Costs</p>
+                    <p id="display-fixed-cost" class="text-lg font-semibold text-gray-700">$0.00</p>
+                </div>
+                <div class="p-2 border-r">
+                    <p class="text-xs text-gray-500">Total Projected Variable</p>
+                    <p id="display-variable-cost" class="text-lg font-semibold text-gray-700">$0.00</p>
+                </div>
+                <div class="p-2 border-r">
+                    <p class="text-xs text-gray-500">Fixed Cost: 1st Half</p>
+                    <p id="display-first-half" class="text-lg font-semibold text-gray-700">$0.00</p>
+                </div>
+                <div class="p-2">
+                    <p class="text-xs text-gray-500">Fixed Cost: 2nd Half</p>
+                    <p id="display-second-half" class="text-lg font-semibold text-gray-700">$0.00</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- FIXED / VARIABLE SETUP TABLE -->
+        <div class="card p-4 md:p-6 mb-8 rounded-xl overflow-x-auto">
+            <h2 class="text-2xl font-bold text-gray-700 mb-4 border-b pb-2">
+                Fixed & Variable Setup
+            </h2>
+            <table class="w-full text-sm text-left border-collapse">
+                <thead>
+                    <tr>
+                        <th class="table-header-bg rounded-tl-lg">Date</th>
+                        <th class="table-header-bg">Subscription/Item</th>
+                        <th class="table-header-bg text-right">Cost (per Freq)</th>
+                        <th class="table-header-bg text-right">Frequency</th>
+                        <th class="table-header-bg text-right">Sum (Cost x Freq)</th>
+                        <th class="table-header-bg">Type</th>
+                        <th class="table-header-bg projected-balance-bg rounded-none text-right text-indigo-900">Projected Balance</th>
+                        <th class="table-header-bg text-right">Paydays</th>
+                        <th class="table-header-bg text-right">Balance</th>
+                        <th class="table-header-bg">Status</th>
+                        <th class="table-header-bg rounded-tr-lg">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="fixed-variable-setup-body">
+                    <!-- Rows will be injected by renderFixedVariableSetup() -->
+                </tbody>
+            </table>
+            <div class="flex space-x-4 mt-4">
+                <button onclick="addSetupItem('Fixed')" class="px-4 py-2 bg-indigo-500 text-white font-medium rounded-lg hover:bg-indigo-600 transition duration-150 shadow-md">
+                    + Add Fixed Item
+                </button>
+                <button onclick="addSetupItem('Variable')" class="px-4 py-2 bg-yellow-500 text-white font-medium rounded-lg hover:bg-yellow-600 transition duration-150 shadow-md">
+                    + Add Variable Item
+                </button>
+            </div>
+        </div>
+
+        <!-- DAILY SPENDING TRACKERS -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            
+            <!-- FLEX SPENDING -->
+            <div class="card p-4 md:p-6 rounded-xl overflow-x-auto">
+                <h2 class="text-2xl font-bold text-gray-700 mb-4 border-b pb-2 flex justify-between items-center">
+                    Daily Flexible Spending
+                    <span class="text-base font-semibold text-red-600">
+                        Remaining: <span id="remaining-flex-summary">$0.00</span>
+                    </span>
+                </h2>
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="table-header-bg rounded-tl-lg w-1/12">Date</th>
+                            <th class="table-header-bg w-5/12 text-center">Item</th>
+                            <th class="table-header-bg w-2/12 text-right">Expenditure</th>
+                            <th class="table-header-bg w-2/12 text-right">Running Remaining</th>
+                            <th class="table-header-bg w-2/12 rounded-tr-lg">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="flex-spending-history-body">
+                        <!-- Rows will be injected by renderDailySpending('Flex') -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- VARIABLE SPENDING -->
+            <div class="card p-4 md:p-6 rounded-xl overflow-x-auto">
+                <h2 class="text-2xl font-bold text-gray-700 mb-4 border-b pb-2 flex justify-between items-center">
+                    Daily Variable Spending
+                    <span class="text-base font-semibold text-orange-600">
+                        Remaining: <span id="remaining-variable-summary">$0.00</span>
+                    </span>
+                </h2>
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead>
+                        <tr>
+                            <th class="table-header-bg rounded-tl-lg w-1/12">Date</th>
+                            <th class="table-header-bg w-5/12 text-center">Item</th>
+                            <th class="table-header-bg w-2/12 text-right">Expenditure</th>
+                            <th class="table-header-bg w-2/12 text-right">Running Remaining</th>
+                            <th class="table-header-bg w-2/12 rounded-tr-lg">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="variable-spending-history-body">
+                        <!-- Rows will be injected by renderDailySpending('Variable') -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- GLOBAL STATE & INITIALIZATION ---
+
+        // Using the current date for the budget month context
+        const date = new Date();
+        const currentMonth = date.getMonth();
+        const currentYear = date.getFullYear();
+
+        // Data structure to hold all budget information in memory
+        let budgetData = {
+            summary: {
+                // Initialize date to the first of the current month for budget context
+                date: new Date(currentYear, currentMonth, 1).toISOString().split('T')[0],
+                monthlySalary: 4000.00,
+                currentBalance: 5000.00,
+                bonusCash: 0.00
+            },
+            fixedItems: [
+                { id: crypto.randomUUID(), date: new Date(currentYear, currentMonth, 5).toISOString().split('T')[0], subscription: 'Rent/Mortgage', cost: 1500.00, frequency: 1.00, sum: 1500.00, paymentType: 'Fixed', paydays: 0.00, currentBalance: 0.00, status: 'Pending' },
+                { id: crypto.randomUUID(), date: new Date(currentYear, currentMonth, 1).toISOString().split('T')[0], subscription: 'Internet', cost: 60.00, frequency: 1.00, sum: 60.00, paymentType: 'Fixed', paydays: 0.00, currentBalance: 0.00, status: 'Pending' },
+                // Paychecks are treated as Fixed Income (paydays > 0)
+                { id: crypto.randomUUID(), date: new Date(currentYear, currentMonth, 15).toISOString().split('T')[0], subscription: 'Paycheck 1', cost: 0.00, frequency: 1.00, sum: 0.00, paymentType: 'Fixed', paydays: 2000.00, currentBalance: 0.00, status: 'Processed' },
+                { id: crypto.randomUUID(), date: new Date(currentYear, currentMonth, 30).toISOString().split('T')[0], subscription: 'Paycheck 2', cost: 0.00, frequency: 1.00, sum: 0.00, paymentType: 'Fixed', paydays: 2000.00, currentBalance: 0.00, status: 'Pending' }
+            ],
+            variableItems: [
+                { id: crypto.randomUUID(), date: 'n/a', subscription: 'Groceries (Projected)', cost: 400.00, frequency: 1.00, sum: 400.00, paymentType: 'Variable', paydays: 0.00, currentBalance: 0.00, status: 'Pending' },
+                { id: crypto.randomUUID(), date: 'n/a', subscription: 'Gas (Projected)', cost: 150.00, frequency: 1.00, sum: 150.00, paymentType: 'Variable', paydays: 0.00, currentBalance: 0.00, status: 'Pending' }
+            ],
+            dailyFlex: [
+                { id: crypto.randomUUID(), date: new Date(currentYear, currentMonth, 2).toISOString().split('T')[0], item: 'Coffee', expenditure: 5.50, status: 'Processed' },
+            ],
+            dailyVariable: [
+                { id: crypto.randomUUID(), date: new Date(currentYear, currentMonth, 3).toISOString().split('T')[0], item: 'Grocery run', expenditure: 80.00, status: 'Pending' },
+            ]
+        };
+
+        // Utility to format currency
+        const formatter = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: 'USD',
+        });
+
+        // Utility to calculate Total Sum (Cost x Frequency)
+        const calculateTotalSum = (items) => items.reduce((sum, item) => sum + (parseFloat(item.cost || 0) * parseFloat(item.frequency || 0)), 0);
+
+        // Utility to format date for display (MM/DD/YYYY)
+        const formatDate = (dateString) => {
+            if (!dateString || dateString === 'n/a') return 'n/a';
+            const d = new Date(dateString);
+            // Ensure the date object is valid before formatting
+            if (isNaN(d.getTime())) return 'n/a'; 
+            return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}/${d.getFullYear()}`;
+        };
+
+
+        // --- CORE CALCULATIONS LOGIC ---
+
+        /**
+         * Performs all necessary summary calculations and updates the main summary display.
+         * @param {object} data - The current budgetData state.
+         * @returns {object} Core budget figures needed for other renders.
+         */
+        function calculateAndRenderSummary(data) {
+            const summary = data.summary;
+            const fixedItems = data.fixedItems;
+            const variableItems = data.variableItems;
+            const dailyFlex = data.dailyFlex;
+            const dailyVariable = data.dailyVariable;
+
+            // 1. Calculate Totals for Fixed and Variable Setup
+            const totalFixedExpenses = calculateTotalSum(fixedItems.filter(item => item.paymentType === 'Fixed' && parseFloat(item.sum || 0) > 0));
+            // Total projected paydays are calculated separately
+            const totalProjectedVariable = calculateTotalSum(variableItems.filter(item => item.paymentType === 'Variable'));
+            const totalPaydays = fixedItems.reduce((sum, item) => sum + parseFloat(item.paydays || 0), 0);
+            
+            // The monthly salary is often split into paydays, so we use the calculated paydays total
+            const effectiveMonthlyIncome = totalPaydays + parseFloat(summary.bonusCash || 0);
+
+            // 2. Calculate Fixed Expenses by Half-Month
+            const firstHalf = fixedItems.filter(item => {
+                const itemDate = new Date(item.date);
+                const day = itemDate.getDate();
+                // Check if the item is an expense (sum > 0) and in the current month
+                return parseFloat(item.sum || 0) > 0 && itemDate.getMonth() === currentMonth && day >= 1 && day <= 15;
+            }).reduce((sum, item) => sum + parseFloat(item.sum || 0), 0);
+
+            const secondHalf = fixedItems.filter(item => {
+                const itemDate = new Date(item.date);
+                const day = itemDate.getDate();
+                // Check if the item is an expense (sum > 0) and in the current month
+                return parseFloat(item.sum || 0) > 0 && itemDate.getMonth() === currentMonth && day >= 16 && day <= 31;
+            }).reduce((sum, item) => sum + parseFloat(item.sum || 0), 0);
+            
+            // 3. Estimated Flex Calculation
+            const currentBalance = parseFloat(summary.currentBalance || 0);
+
+            // Estimated Flex = Total Income (Paydays + Bonus) - Total Fixed Expenses - Total Projected Variable Expenses
+            const estimatedFlex = effectiveMonthlyIncome - totalFixedExpenses - totalProjectedVariable;
+            
+            // 4. Calculate Remaining Flex and Variable (for Summary)
+            const totalFlexExpenditure = dailyFlex.reduce((sum, item) => sum + parseFloat(item.expenditure || 0), 0);
+            const totalVariableExpenditure = dailyVariable.reduce((sum, item) => sum + parseFloat(item.expenditure || 0), 0);
+
+            const remainingFlex = estimatedFlex - totalFlexExpenditure;
+            const remainingVariable = totalProjectedVariable - totalVariableExpenditure;
+
+            // Update UI elements from summary
+            document.getElementById('display-date').textContent = `Date: ${formatDate(summary.date)}`;
+            document.getElementById('display-salary').textContent = formatter.format(effectiveMonthlyIncome); // Display effective income
+            document.getElementById('display-current-balance').textContent = formatter.format(currentBalance);
+            document.getElementById('display-fixed-cost').textContent = formatter.format(totalFixedExpenses);
+            document.getElementById('display-variable-cost').textContent = formatter.format(totalProjectedVariable);
+            document.getElementById('display-first-half').textContent = formatter.format(firstHalf);
+            document.getElementById('display-second-half').textContent = formatter.format(secondHalf);
+            document.getElementById('display-estimated-flex').textContent = formatter.format(estimatedFlex);
+            document.getElementById('display-bonus-cash').textContent = formatter.format(parseFloat(summary.bonusCash || 0));
+
+            // Update Remaining indicators in the Daily Spending tables
+            document.getElementById('remaining-flex-summary').textContent = formatter.format(remainingFlex);
+            document.getElementById('remaining-variable-summary').textContent = formatter.format(remainingVariable);
+            
+            // Update input fields for editing summary data
+            // Note: We use the actual monthly salary input, even if the calculation relies on paydays for flow
+            document.querySelector(`input[data-key="monthlySalary"]`).value = parseFloat(summary.monthlySalary || 0).toFixed(2);
+            document.querySelector(`input[data-key="currentBalance"]`).value = currentBalance.toFixed(2);
+            document.querySelector(`input[data-key="bonusCash"]`).value = parseFloat(summary.bonusCash || 0).toFixed(2);
+
+            return { estimatedFlex, totalProjectedVariable, currentBalance };
+        }
+
+        /**
+         * Calculates the running projected balance based on fixed income and expenses.
+         */
+        function calculateProjectedBalance(fixedItems, initialBalance) {
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            let runningBalance = initialBalance;
+            // Index 1 to 31 for days of the month
+            let dailyEvents = new Array(daysInMonth + 1).fill(null).map(() => ({ expense: 0, payday: 0 })); 
+
+            // 1. Aggregate Fixed Expenses and Paydays by date
+            fixedItems.forEach(item => {
+                const itemDate = new Date(item.date);
+                const dayKey = itemDate.getDate();
+
+                // Check if the item's date is in the current month before aggregating
+                if (dayKey >= 1 && dayKey <= daysInMonth && itemDate.getMonth() === currentMonth) {
+                    // Aggregate fixed expense sum (only expenses, sum > 0)
+                    if (parseFloat(item.sum || 0) > 0) {
+                         dailyEvents[dayKey].expense += parseFloat(item.sum || 0);
+                    }
+                    // Aggregate payday income (paydays > 0)
+                    if (parseFloat(item.paydays || 0) > 0) {
+                         dailyEvents[dayKey].payday += parseFloat(item.paydays || 0);
+                    }
+                }
+            });
+
+            // 2. Calculate the running Projected Balance day-by-day
+            const projectedBalances = [];
+            for (let day = 1; day <= daysInMonth; day++) {
+                const dateString = new Date(currentYear, currentMonth, day).toISOString().split('T')[0];
+                const event = dailyEvents[day];
+
+                // The balance changes on this day
+                runningBalance = runningBalance + event.payday - event.expense;
+                
+                projectedBalances.push({ date: dateString, balance: runningBalance });
+            }
+            
+            return projectedBalances;
+        }
+
+
+        // --- RENDERING FUNCTIONS ---
+
+        function renderFixedVariableSetup(fixedItems, variableItems, projectedBalances) {
+            const fixedBody = document.getElementById('fixed-variable-setup-body');
+            fixedBody.innerHTML = '';
+
+            // Function to find projected balance for a specific day
+            const getProjectedBalance = (dateString) => {
+                const day = new Date(dateString).getDate();
+                const balanceEntry = projectedBalances.find(p => new Date(p.date).getDate() === day);
+                return balanceEntry ? formatter.format(balanceEntry.balance) : formatter.format(0);
+            };
+
+            // 1. Fixed Items Rendering
+            const allSetupItems = [
+                ...fixedItems.map(item => ({ ...item, isFixed: true })), 
+                ...variableItems.map(item => ({ ...item, isFixed: false }))
+            ];
+
+            // Sort fixed items by date, and variable items appear after
+            allSetupItems.sort((a, b) => {
+                if (a.isFixed && !b.isFixed) return -1;
+                if (!a.isFixed && b.isFixed) return 1;
+                if (a.isFixed && b.isFixed) {
+                    return new Date(a.date) - new Date(b.date);
+                }
+                return 0; // Maintain order for variable items
+            }).forEach((item) => {
+                const row = fixedBody.insertRow();
+                row.className = item.isFixed ? 'fixed-row-bg' : 'variable-row-bg';
+                row.dataset.id = item.id;
+                
+                const projectedBalanceDisplay = item.isFixed ? getProjectedBalance(item.date) : formatter.format(0);
+                const typeText = item.isFixed ? 'Fixed' : 'Variable';
+                const dateInputOrDisplay = item.isFixed ? 
+                    `<input type="date" value="${item.date}" data-key="date" data-id="${item.id}" onchange="handleSetupInputChange(this)" class="spreadsheet-input" style="padding: 0.25rem;">` : 
+                    'n/a';
+                const paydaysInputOrDisplay = item.isFixed ? 
+                    `<input type="number" value="${parseFloat(item.paydays || 0).toFixed(2)}" data-key="paydays" data-id="${item.id}" onchange="handleSetupInputChange(this)" class="spreadsheet-input" style="padding: 0.25rem; text-align: right;">` : 
+                    '';
+                const typeForDelete = item.isFixed ? 'Fixed' : 'Variable';
+
+                row.innerHTML = `
+                    <td class="table-cell">${dateInputOrDisplay}</td>
+                    <td class="table-cell"><input type="text" value="${item.subscription}" data-key="subscription" data-id="${item.id}" onchange="handleSetupInputChange(this)" class="spreadsheet-input" style="padding: 0.25rem;"></td>
+                    <td class="table-cell text-right"><input type="number" value="${parseFloat(item.cost || 0).toFixed(2)}" data-key="cost" data-id="${item.id}" onchange="handleSetupInputChange(this)" class="spreadsheet-input" style="padding: 0.25rem; text-align: right;"></td>
+                    <td class="table-cell text-right"><input type="number" value="${parseFloat(item.frequency || 0).toFixed(2)}" data-key="frequency" data-id="${item.id}" onchange="handleSetupInputChange(this)" class="spreadsheet-input" style="padding: 0.25rem; text-align: right;"></td>
+                    <td class="table-cell text-right">${formatter.format(item.sum)}</td>
+                    <td class="table-cell">${typeText}</td>
+                    <td class="table-cell projected-balance-bg text-right">${projectedBalanceDisplay}</td>
+                    <td class="table-cell text-right">${paydaysInputOrDisplay}</td>
+                    <td class="table-cell text-right">${formatter.format(item.currentBalance || 0)}</td>
+                    <td class="table-cell ${item.status === 'Processed' ? 'processed-status-bg' : 'pending-status-bg'}">${item.status}</td>
+                    <td class="table-cell"><button onclick="deleteSetupItem('${item.id}', '${typeForDelete}')" style="color: #ef4444; cursor: pointer; background: none; border: none;">Delete</button></td>
+                `;
+            });
+        }
+
+        /**
+         * Renders the daily spending history tables (Flex or Variable)
+         */
+        function renderDailySpending(dailyItems, type, budget) {
+            const tableBody = document.getElementById(`${type.toLowerCase()}-spending-history-body`);
+            tableBody.innerHTML = '';
+            
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            
+            // Sort items by date
+            dailyItems.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            const dailyMap = new Map();
+            
+            // 1. Group transactions by date
+            for (const item of dailyItems) {
+                const dateKey = new Date(item.date).toISOString().split('T')[0];
+                if (!dailyMap.has(dateKey)) dailyMap.set(dateKey, { items: [], dailySum: 0 });
+                
+                const dayData = dailyMap.get(dateKey);
+                dayData.items.push(item);
+                dayData.dailySum += parseFloat(item.expenditure || 0);
+            }
+            
+            // 2. Loop through every day of the month to render
+            let runningRemaining = budget;
+            let currentDayTotal = 0; // To track daily spending before the next day's calculations
+
+            for (let i = 1; i <= daysInMonth; i++) {
+                const date = new Date(currentYear, currentMonth, i);
+                const dateKey = date.toISOString().split('T')[0];
+                const dateString = formatDate(dateKey);
+                
+                const isPastOrCurrentDay = date.setHours(0,0,0,0) <= new Date().setHours(0,0,0,0);
+
+                const itemsOnDay = dailyMap.get(dateKey)?.items || [];
+                
+                // Render all transactions for the day
+                if (itemsOnDay.length > 0) {
+                    let dailyExpenditureSum = itemsOnDay.reduce((sum, item) => sum + parseFloat(item.expenditure || 0), 0);
+                    currentDayTotal += dailyExpenditureSum;
+
+                    itemsOnDay.forEach((item, idx) => {
+                        const row = tableBody.insertRow();
+                        row.className = `${type.toLowerCase()}-spending-bg`;
+                        row.dataset.id = item.id;
+                        
+                        const runningRemainingDisplay = (idx === itemsOnDay.length - 1) 
+                            ? formatter.format(runningRemaining - currentDayTotal) 
+                            : '...';
+                        
+                        // Apply the running Remaining calculation only once at the end of the day's transactions
+                        if (idx === itemsOnDay.length - 1) {
+                            runningRemaining -= dailyExpenditureSum;
+                            currentDayTotal = 0; // Reset for the next day
+                        }
+
+
+                        row.innerHTML = `
+                            <td class="table-cell text-center font-bold">${(idx === 0) ? dateString : '*'}</td>
+                            <td class="table-cell text-center" style="display: flex; align-items: center; justify-content: space-between;">
+                                <input type="text" value="${item.item}" data-key="item" data-id="${item.id}" data-type="${type}" onchange="handleDailyInputChange(this)" class="spreadsheet-input" style="padding: 0.25rem; flex-grow: 1; margin-right: 0.5rem;">
+                                <button onclick="deleteDailyItem('${item.id}', '${type}')" class="text-red-500 hover:text-red-700 cursor-pointer bg-transparent border-none flex-shrink-0 text-lg font-bold p-1">x</button>
+                            </td>
+                            <td class="table-cell text-right">
+                                <input type="number" value="${parseFloat(item.expenditure || 0).toFixed(2)}" data-key="expenditure" data-id="${item.id}" data-type="${type}" onchange="handleDailyInputChange(this)" class="spreadsheet-input" style="padding: 0.25rem; text-align: right;">
+                            </td>
+                            <td class="table-cell text-right font-bold">
+                                ${runningRemainingDisplay}
+                            </td>
+                            <td class="table-cell ${item.status === 'Processed' ? 'processed-status-bg' : 'pending-status-bg'}">${item.status}</td>
+                        `;
+                    });
+                }
+                
+                // 3. Add an empty input row for adding new items on this date
+                const addRow = tableBody.insertRow();
+                addRow.className = `${type.toLowerCase()}-spending-bg`;
+                
+                // Calculate the remaining balance for the "add new item" row
+                let remainingForInputRow = runningRemaining;
+                
+                // If it's the last transaction of the day, currentDayTotal is 0, so no further adjustment needed
+                // If there were no transactions today, we still show the runningRemaining
+                
+                addRow.innerHTML = `
+                    <td class="table-cell text-center">${(itemsOnDay.length === 0) ? dateString : '*'}</td>
+                    <td class="table-cell text-center">
+                        <input type="text" placeholder="Add new item..." data-key="item" data-date="${dateKey}" data-type="${type}" onblur="addDailySpendingItem(this)" class="spreadsheet-input" style="padding: 0.25rem;">
+                    </td>
+                    <td class="table-cell text-right">
+                        <input type="number" value="" placeholder="0.00" data-key="expenditure" data-date="${dateKey}" data-type="${type}" class="spreadsheet-input" style="padding: 0.25rem; text-align: right;">
+                    </td>
+                    <td class="table-cell text-right font-bold">
+                        ${formatter.format(remainingForInputRow)}
+                    </td>
+                    <td class="table-cell pending-status-bg">Pending</td>
+                `;
+            }
+        }
+
+
+        // --- MAIN APP FLOW ---
+
+        /**
+         * Main entry point to update all UI elements based on the current budgetData state.
+         */
+        function updateUI() {
+            // 1. Calculate Summary and get core figures
+            const { estimatedFlex, totalProjectedVariable, currentBalance } = calculateAndRenderSummary(budgetData);
+
+            // 2. Calculate Projected Balance (requires initial balance from summary)
+            const initialBalance = parseFloat(budgetData.summary.currentBalance || 0);
+            const projectedBalances = calculateProjectedBalance(budgetData.fixedItems, initialBalance);
+
+            // 3. Render Fixed/Variable Setup table
+            renderFixedVariableSetup(budgetData.fixedItems, budgetData.variableItems, projectedBalances);
+
+            // 4. Render Daily Spending History tables
+            renderDailySpending(budgetData.dailyFlex, 'Flex', estimatedFlex);
+            renderDailySpending(budgetData.dailyVariable, 'Variable', totalProjectedVariable);
+        }
+
+
+        // --- INPUT HANDLERS (EXPOSED TO GLOBAL WINDOW FOR HTML) ---
+
+        window.handleSummaryInputChange = (input) => {
+            const key = input.dataset.key;
+            let value = input.value;
+            
+            if (key !== 'date') {
+                value = parseFloat(value) || 0;
+            }
+
+            budgetData.summary[key] = value;
+            updateUI();
+        };
+
+        window.handleSetupInputChange = (input) => {
+            const id = input.dataset.id;
+            const key = input.dataset.key;
+            let value = input.value;
+
+            const items = [...budgetData.fixedItems, ...budgetData.variableItems];
+            const itemToUpdate = items.find(item => item.id === id);
+            if (!itemToUpdate) return;
+            
+            // Handle numeric fields
+            if (['cost', 'frequency', 'paydays'].includes(key)) {
+                value = parseFloat(value) || 0;
+            }
+
+            itemToUpdate[key] = value;
+            
+            // Recalculate Sum (Cost x Frequency)
+            itemToUpdate.sum = parseFloat(itemToUpdate.cost || 0) * parseFloat(itemToUpdate.frequency || 0);
+            
+            updateUI();
+        };
+
+        window.addSetupItem = (type) => {
+            const newItem = {
+                id: crypto.randomUUID(),
+                date: type === 'Fixed' ? new Date(currentYear, currentMonth, 1).toISOString().split('T')[0] : 'n/a',
+                subscription: `New ${type} Item`,
+                cost: 0.00,
+                frequency: 1.00,
+                sum: 0.00,
+                paymentType: type,
+                paydays: 0.00,
+                currentBalance: 0.00,
+                status: 'Pending'
+            };
+            
+            if (type === 'Fixed') {
+                budgetData.fixedItems.push(newItem);
+            } else {
+                budgetData.variableItems.push(newItem);
+            }
+            updateUI();
+        };
+
+        window.deleteSetupItem = (id, type) => {
+            const confirmation = document.getElementById('confirmation-modal');
+            const itemToDelete = type === 'Fixed' 
+                ? budgetData.fixedItems.find(item => item.id === id)
+                : budgetData.variableItems.find(item => item.id === id);
+
+            if (!itemToDelete) return;
+            
+            document.getElementById('modal-message').textContent = `Are you sure you want to delete the ${itemToDelete.subscription} entry?`;
+            
+            document.getElementById('modal-confirm-button').onclick = () => {
+                if (type === 'Fixed') {
+                    budgetData.fixedItems = budgetData.fixedItems.filter(item => item.id !== id);
+                } else {
+                    budgetData.variableItems = budgetData.variableItems.filter(item => item.id !== id);
+                }
+                confirmation.classList.remove('show');
+                updateUI();
+            };
+            document.getElementById('modal-cancel-button').onclick = () => confirmation.classList.remove('show');
+            confirmation.classList.add('show');
+        };
+
+        window.handleDailyInputChange = (input) => {
+            const id = input.dataset.id;
+            const type = input.dataset.type;
+            const key = input.dataset.key;
+            let value = input.value;
+            
+            const collection = type === 'Flex' ? budgetData.dailyFlex : budgetData.dailyVariable;
+            const itemToUpdate = collection.find(item => item.id === id);
+            
+            if (!itemToUpdate) return;
+
+            if (key === 'expenditure') {
+                value = parseFloat(value) || 0;
+            }
+            
+            itemToUpdate[key] = value;
+            updateUI();
+        };
+
+        window.addDailySpendingItem = (input) => {
+            // Check if the input value has been changed (onblur event)
+            if (input.dataset.key !== 'item') return;
+            
+            const date = input.dataset.date;
+            const type = input.dataset.type;
+            
+            // Find the expenditure input next to it
+            const expenditureInput = input.parentElement.nextElementSibling.querySelector('input[data-key="expenditure"]');
+            const expenditure = parseFloat(expenditureInput.value) || 0;
+
+            // Only proceed if there is an item name OR expenditure (prevent spamming empty rows)
+            if (input.value.trim() === '' && expenditure === 0) return;
+            
+            const newItem = {
+                id: crypto.randomUUID(),
+                date: date,
+                item: input.value,
+                expenditure: expenditure,
+                status: 'Pending'
+            };
+            
+            if (type === 'Flex') {
+                budgetData.dailyFlex.push(newItem);
+            } else {
+                budgetData.dailyVariable.push(newItem);
+            }
+
+            // Clear the input fields for the new item row before re-render
+            input.value = '';
+            expenditureInput.value = '';
+
+            // Since we are adding an item, we call updateUI, which will re-render everything
+            updateUI(); 
+        };
+
+
+        window.deleteDailyItem = (id, type) => {
+            const collectionName = type === 'Flex' ? 'dailyFlex' : 'dailyVariable';
+            const collection = budgetData[collectionName];
+            const itemToDelete = collection.find(item => item.id === id);
+
+            if (!itemToDelete) return;
+            
+            const confirmation = document.getElementById('confirmation-modal');
+            document.getElementById('modal-message').textContent = `Are you sure you want to delete the daily expense entry: "${itemToDelete.item}"?`;
+            
+            document.getElementById('modal-confirm-button').onclick = () => {
+                if (type === 'Flex') {
+                    budgetData.dailyFlex = budgetData.dailyFlex.filter(item => item.id !== id);
+                } else {
+                    budgetData.dailyVariable = budgetData.dailyVariable.filter(item => item.id !== id);
+                }
+                confirmation.classList.remove('show');
+                updateUI();
+            };
+            document.getElementById('modal-cancel-button').onclick = () => confirmation.classList.remove('show');
+            confirmation.classList.add('show');
+        };
+
+
+        // --- INITIALIZE ---
+        window.onload = updateUI;
+    </script>
+</body>
+</html>
